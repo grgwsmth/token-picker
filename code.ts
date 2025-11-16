@@ -81,8 +81,8 @@ function flattenTokens(obj: any, tokens: any, prefix: string = '', result: Array
 // Extract styles from a node
 function extractStyles(node: SceneNode) {
   const styles: {
-    fills?: Paint[];
-    strokes?: Paint[];
+    fills?: readonly Paint[];
+    strokes?: readonly Paint[];
     fontSize?: number;
     fontName?: FontName;
     letterSpacing?: LetterSpacing;
@@ -93,15 +93,18 @@ function extractStyles(node: SceneNode) {
     paddingRight?: number;
     paddingTop?: number;
     paddingBottom?: number;
-    effects?: Effect[];
+    effects?: readonly Effect[];
   } = {};
 
   if ('fills' in node && node.fills !== figma.mixed && node.fills.length > 0) {
     styles.fills = node.fills;
   }
 
-  if ('strokes' in node && node.strokes !== figma.mixed && node.strokes.length > 0) {
-    styles.strokes = node.strokes;
+  if ('strokes' in node) {
+    const strokes = node.strokes;
+    if (strokes !== figma.mixed && strokes.length > 0) {
+      styles.strokes = strokes;
+    }
   }
 
   if ('fontSize' in node && typeof node.fontSize === 'number') {
@@ -292,7 +295,7 @@ figma.ui.onmessage = async (msg: {
         if (msg.property === 'spacing' && typeof tokenValue === 'number') {
           if ('paddingLeft' in node) {
             const spacing = tokenValue;
-            if (msg.tokenPath.includes('padding')) {
+            if (msg.tokenPath && msg.tokenPath.includes('padding')) {
               node.paddingLeft = spacing;
               node.paddingRight = spacing;
               node.paddingTop = spacing;
