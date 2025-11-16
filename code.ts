@@ -100,10 +100,11 @@ function extractStyles(node: SceneNode) {
     styles.fills = node.fills;
   }
 
-  if ('strokes' in node && node.strokes !== figma.mixed) {
+  if ('strokes' in node) {
     const strokes = node.strokes;
-    if (strokes.length > 0) {
-      styles.strokes = strokes;
+    // Type guard: check if strokes is not the mixed symbol
+    if (typeof strokes !== 'symbol' && strokes.length > 0) {
+      styles.strokes = strokes as readonly Paint[];
     }
   }
 
