@@ -281,26 +281,25 @@
     function updateSelectionInfo(selection) {
       const info = document.getElementById('selection-info');
       if (selection.length === 0) {
-        info.innerHTML = '<strong>No selection</strong><br>Select a component or frame to apply tokens';
+        info.innerHTML = '<strong>No selection</strong><br>Select a component, frame, or text node to apply tokens';
       } else {
         const types = selection.map(s => s.type.toLowerCase()).join(', ');
         info.innerHTML = `<strong>${selection.length} ${selection.length === 1 ? 'item' : 'items'} selected</strong><br>Type: ${types}`;
       }
     }
     
-    // Update current styles display
-    function updateCurrentStyles(styles) {
-      const container = document.getElementById('current-styles-container');
-      if (!styles) {
-        container.innerHTML = '';
-        return;
-      }
-      
-      let html = '<div class="current-styles"><div class="current-styles-title">Current Styles</div>';
+    // Render styles for a single node
+    function renderNodeStyles(nodeName, nodeType, styles) {
+      let html = '';
       
       if (styles.fills && styles.fills.length > 0) {
         const color = getColorFromPaint(styles.fills[0]);
         html += `<div class="style-item">Fill: <span style="display:inline-block;width:12px;height:12px;background:${color};border:1px solid #ccc;vertical-align:middle;margin:0 4px;"></span>${color}</div>`;
+      }
+      
+      if (styles.strokes && styles.strokes.length > 0) {
+        const strokeColor = getColorFromPaint(styles.strokes[0]);
+        html += `<div class="style-item">Stroke: <span style="display:inline-block;width:12px;height:12px;background:${strokeColor};border:1px solid #ccc;vertical-align:middle;margin:0 4px;"></span>${strokeColor}</div>`;
       }
       
       if (styles.fontSize) {
@@ -311,18 +310,69 @@
         html += `<div class="style-item">Font Weight: ${styles.fontWeight}</div>`;
       }
       
+      if (styles.fontName) {
+        const fontName = typeof styles.fontName === 'object' ? `${styles.fontName.family} ${styles.fontName.style || ''}`.trim() : styles.fontName;
+        html += `<div class="style-item">Font: ${fontName}</div>`;
+      }
+      
       if (styles.lineHeight) {
         const lh = styles.lineHeight;
         const lhValue = typeof lh === 'object' ? lh.value : lh;
         html += `<div class="style-item">Line Height: ${lhValue}${typeof lh === 'object' && lh.unit === 'PIXELS' ? 'px' : ''}</div>`;
       }
       
+      if (styles.letterSpacing) {
+        const ls = styles.letterSpacing;
+        const lsValue = typeof ls === 'object' ? ls.value : ls;
+        html += `<div class="style-item">Letter Spacing: ${lsValue}${typeof ls === 'object' && ls.unit === 'PIXELS' ? 'px' : ''}</div>`;
+      }
+      
       if (styles.cornerRadius !== undefined) {
         html += `<div class="style-item">Corner Radius: ${styles.cornerRadius}px</div>`;
       }
       
-      html += '</div>';
-      container.innerHTML = html;
+      if (styles.paddingLeft !== undefined || styles.paddingTop !== undefined) {
+        const padding = styles.paddingTop || styles.paddingLeft || 0;
+        html += `<div class="style-item">Padding: ${padding}px</div>`;
+      }
+      
+      if (styles.effects && styles.effects.length > 0) {
+        const effectCount = styles.effects.length;
+        html += `<div class="style-item">Effects: ${effectCount} ${effectCount === 1 ? 'effect' : 'effects'}</div>`;
+      }
+      
+      return html;
+    }
+    
+    // Update current styles display - shows all styles from all nodes
+    function updateCurrentStyles(styles, allStyles) {
+      const container = document.getElementById('current-styles-container');
+      
+      // Use allStyles if available, otherwise fall back to single styles object
+      if (allStyles && allStyles.length > 0) {
+        let html = '<div class="current-styles"><div class="current-styles-title">Current Styles (All Nodes)</div>';
+        
+        allStyles.forEach((nodeData, index) => {
+          const nodeStylesHtml = renderNodeStyles(nodeData.nodeName, nodeData.nodeType, nodeData.styles);
+          if (nodeStylesHtml) {
+            html += `<div style="margin-top: ${index > 0 ? '12px' : '0'}; padding-top: ${index > 0 ? '12px' : '0'}; border-top: ${index > 0 ? '1px solid #e5e5e5' : 'none'};">`;
+            html += `<div style="font-weight: 600; font-size: 11px; color: #666; margin-bottom: 6px;">${nodeData.nodeName} (${nodeData.nodeType})</div>`;
+            html += nodeStylesHtml;
+            html += '</div>';
+          }
+        });
+        
+        html += '</div>';
+        container.innerHTML = html;
+      } else if (styles) {
+        // Fallback to single styles object for backward compatibility
+        let html = '<div class="current-styles"><div class="current-styles-title">Current Styles</div>';
+        html += renderNodeStyles('Selected Node', 'NODE', styles);
+        html += '</div>';
+        container.innerHTML = html;
+      } else {
+        container.innerHTML = '';
+      }
     }
     
     // Render color tokens
@@ -487,7 +537,7 @@
         renderTypographyTokens(msg.tokens.typography);
         renderSpacingTokens(msg.tokens.spacing);
         updateSelectionInfo(msg.selection);
-        updateCurrentStyles(msg.currentStyles);
+        updateCurrentStyles(msg.currentStyles, msg.allStyles);
       }
       
       if (msg.type === 'selection-changed') {
@@ -495,7 +545,7 @@
         currentStyles = msg.currentStyles;
         currentTokens = msg.tokens;
         updateSelectionInfo(msg.selection);
-        updateCurrentStyles(msg.currentStyles);
+        updateCurrentStyles(msg.currentStyles, msg.allStyles);
         renderColorTokens(msg.tokens.colors);
         renderTypographyTokens(msg.tokens.typography);
         renderSpacingTokens(msg.tokens.spacing);

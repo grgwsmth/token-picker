@@ -78,8 +78,8 @@ function flattenTokens(obj: any, tokens: any, prefix: string = '', result: Array
   return result;
 }
 
-// Extract styles from a node
-function extractStyles(node: SceneNode) {
+// Extract styles from a single node
+function extractNodeStyles(node: SceneNode) {
   const styles: {
     fills?: readonly Paint[];
     strokes?: readonly Paint[];
@@ -146,6 +146,36 @@ function extractStyles(node: SceneNode) {
   return styles;
 }
 
+// Extract all styles from a node and all its children recursively
+function extractAllStyles(node: SceneNode): Array<{nodeName: string; nodeType: string; styles: ReturnType<typeof extractNodeStyles>}> {
+  const result: Array<{nodeName: string; nodeType: string; styles: ReturnType<typeof extractNodeStyles>}> = [];
+  
+  // Extract styles from current node
+  const nodeStyles = extractNodeStyles(node);
+  // Only add if node has any styles
+  if (Object.keys(nodeStyles).length > 0) {
+    result.push({
+      nodeName: node.name,
+      nodeType: node.type,
+      styles: nodeStyles
+    });
+  }
+  
+  // Recursively process children if this node has children
+  if ('children' in node) {
+    for (const child of node.children) {
+      result.push(...extractAllStyles(child));
+    }
+  }
+  
+  return result;
+}
+
+// Extract styles from a node (backward compatibility - returns first node's styles)
+function extractStyles(node: SceneNode) {
+  return extractNodeStyles(node);
+}
+
 // Convert hex color to Figma RGB
 function hexToRgb(hex: string): { r: number; g: number; b: number; a?: number } | null {
   const rgbaMatch = hex.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
@@ -171,12 +201,12 @@ function hexToRgb(hex: string): { r: number; g: number; b: number; a?: number } 
   return null;
 }
 
-// Get selected components and frames
-function getSelectedNodes(): (ComponentNode | InstanceNode | FrameNode)[] {
+// Get selected components, frames, and text nodes
+function getSelectedNodes(): (ComponentNode | InstanceNode | FrameNode | TextNode)[] {
   const selection = figma.currentPage.selection;
   return selection.filter(
-    (node) => node.type === 'COMPONENT' || node.type === 'INSTANCE' || node.type === 'FRAME'
-  ) as (ComponentNode | InstanceNode | FrameNode)[];
+    (node) => node.type === 'COMPONENT' || node.type === 'INSTANCE' || node.type === 'FRAME' || node.type === 'TEXT'
+  ) as (ComponentNode | InstanceNode | FrameNode | TextNode)[];
 }
 
 // Get all available tokens organized by category
@@ -213,7 +243,7 @@ figma.ui.onmessage = async (msg: {
     
     if (selected.length > 0) {
       const firstNode = selected[0];
-      const extractedStyles = extractStyles(firstNode);
+      const allStyles = extractAllStyles(firstNode);
       
       figma.ui.postMessage({
         type: 'init',
@@ -223,7 +253,8 @@ figma.ui.onmessage = async (msg: {
           name: node.name,
           type: node.type,
         })),
-        currentStyles: extractedStyles,
+        allStyles: allStyles,
+        currentStyles: allStyles.length > 0 ? allStyles[0].styles : null,
       });
     } else {
       figma.ui.postMessage({
@@ -241,7 +272,7 @@ figma.ui.onmessage = async (msg: {
     if (selected.length === 0) {
       figma.ui.postMessage({
         type: 'error',
-        message: 'Please select a component or frame first',
+        message: 'Please select a component, frame, or text node first',
       });
       return;
     }
@@ -286,7 +317,9 @@ figma.ui.onmessage = async (msg: {
         }
 
         if (msg.property === 'fontWeight' && typeof tokenValue === 'number' && 'fontWeight' in node) {
-          node.fontWeight = tokenValue;
+          // Note: fontWeight is read-only in Figma. To change weight, you need to load a font with that weight
+          // and set fontName instead. For now, we'll skip this.
+          // node.fontWeight = tokenValue; // This would fail - fontWeight is read-only
         }
 
         if (msg.property === 'cornerRadius' && typeof tokenValue === 'number' && 'cornerRadius' in node) {
@@ -323,7 +356,7 @@ figma.ui.onmessage = async (msg: {
     
     if (selected.length > 0) {
       const firstNode = selected[0];
-      const extractedStyles = extractStyles(firstNode);
+      const allStyles = extractAllStyles(firstNode);
       
       figma.ui.postMessage({
         type: 'selection-changed',
@@ -332,13 +365,15 @@ figma.ui.onmessage = async (msg: {
           name: node.name,
           type: node.type,
         })),
-        currentStyles: extractedStyles,
+        allStyles: allStyles,
+        currentStyles: allStyles.length > 0 ? allStyles[0].styles : null,
         tokens: tokensByCategory,
       });
     } else {
       figma.ui.postMessage({
         type: 'selection-changed',
         selection: [],
+        allStyles: [],
         currentStyles: null,
         tokens: tokensByCategory,
       });
