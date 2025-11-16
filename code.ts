@@ -100,9 +100,9 @@ function extractStyles(node: SceneNode) {
     styles.fills = node.fills;
   }
 
-  if ('strokes' in node) {
+  if ('strokes' in node && node.strokes !== figma.mixed) {
     const strokes = node.strokes;
-    if (strokes !== figma.mixed && strokes.length > 0) {
+    if (strokes.length > 0) {
       styles.strokes = strokes;
     }
   }
