@@ -1,17 +1,528 @@
-<h2>Rectangle Creator</h2>
-<p>Count: <input id="count" type="number" value="5"></p>
-<button id="create">Create</button>
-<button id="cancel">Cancel</button>
-<script>
-
-document.getElementById('create').onclick = () => {
-  const textbox = document.getElementById('count');
-  const count = parseInt(textbox.value, 10);
-  parent.postMessage({ pluginMessage: { type: 'create-shapes', count } }, '*')
-}
-
-document.getElementById('cancel').onclick = () => {
-  parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*')
-}
-
-</script>
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: Inter, sans-serif;
+      padding: 16px;
+      background: #ffffff;
+      height: 100%;
+      overflow-y: auto;
+    }
+    
+    .header {
+      margin-bottom: 16px;
+      position: sticky;
+      top: 0;
+      background: white;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e5e5e5;
+      z-index: 10;
+    }
+    
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .subtitle {
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .selection-info {
+      padding: 12px;
+      background: #f5f5f5;
+      border-radius: 4px;
+      margin-bottom: 16px;
+      font-size: 12px;
+    }
+    
+    .selection-info strong {
+      color: #333;
+    }
+    
+    .current-styles {
+      margin-bottom: 16px;
+      padding: 12px;
+      background: #f9f9f9;
+      border-radius: 4px;
+      border-left: 3px solid #18a0fb;
+    }
+    
+    .current-styles-title {
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #333;
+    }
+    
+    .style-item {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    
+    .section {
+      margin-bottom: 24px;
+    }
+    
+    .section-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: #666;
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
+    }
+    
+    .token-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    .token-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      border: 1px solid #e5e5e5;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 12px;
+    }
+    
+    .token-item:hover {
+      background: #f5f5f5;
+      border-color: #18a0fb;
+    }
+    
+    .token-item.color-token {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .color-preview {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      border: 1px solid #e5e5e5;
+      flex-shrink: 0;
+    }
+    
+    .token-name {
+      flex: 1;
+      font-size: 12px;
+    }
+    
+    .token-path {
+      font-size: 10px;
+      color: #999;
+      margin-left: 8px;
+    }
+    
+    .empty-state {
+      padding: 24px;
+      text-align: center;
+      color: #999;
+      font-size: 12px;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      position: sticky;
+      bottom: 0;
+      background: white;
+      padding-top: 12px;
+      border-top: 1px solid #e5e5e5;
+    }
+    
+    button {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    button.secondary {
+      background: #f0f0f0;
+      color: #333;
+    }
+    
+    button.secondary:hover {
+      background: #e0e0e0;
+    }
+    
+    .message {
+      padding: 8px 12px;
+      border-radius: 4px;
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+    
+    .message.success {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    
+    .message.error {
+      background: #ffebee;
+      color: #c62828;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>Token Picker</h2>
+    <div class="subtitle">Apply design tokens to selected components</div>
+  </div>
+  
+  <div id="message-container"></div>
+  
+  <div class="selection-info" id="selection-info">
+    Loading tokens...
+  </div>
+  
+  <div id="current-styles-container"></div>
+  
+  <div class="section">
+    <div class="section-title">Colors</div>
+    <div class="token-list" id="colors-list">
+      <div class="empty-state">Loading tokens...</div>
+    </div>
+  </div>
+  
+  <div class="section">
+    <div class="section-title">Typography</div>
+    <div class="token-list" id="typography-list">
+      <div class="empty-state">No typography tokens found</div>
+    </div>
+  </div>
+  
+  <div class="section">
+    <div class="section-title">Spacing</div>
+    <div class="token-list" id="spacing-list">
+      <div class="empty-state">No spacing tokens found</div>
+    </div>
+  </div>
+  
+  <div class="button-group">
+    <button class="secondary" id="cancel">Close</button>
+  </div>
+  
+  <script>
+    let currentTokens = { colors: [], spacing: [], typography: [], effects: [] };
+    let currentSelection = [];
+    let currentStyles = null;
+    let tokensData = null;
+    
+    // Load JSON file
+    async function loadTokens() {
+      try {
+        const response = await fetch('./ld-tokens.json');
+        let text = await response.text();
+        
+        // Remove any header lines that aren't JSON (like "Export Variables" or filename)
+        const lines = text.split('\n');
+        let jsonStart = 0;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].trim().startsWith('{')) {
+            jsonStart = i;
+            break;
+          }
+        }
+        text = lines.slice(jsonStart).join('\n');
+        
+        const tokens = JSON.parse(text);
+        tokensData = tokens;
+        
+        // Send tokens to plugin code
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'tokens-loaded',
+            tokens: tokens
+          } 
+        }, '*');
+      } catch (error) {
+        console.error('Error loading tokens:', error);
+        document.getElementById('selection-info').innerHTML = 
+          '<strong>Error loading tokens</strong><br>Make sure ld-tokens.json is in the plugin directory';
+      }
+    }
+    
+    // Load tokens on page load
+    loadTokens();
+    
+    // Helper to convert RGB to hex
+    function rgbToHex(r, g, b) {
+      return "#" + [r, g, b].map(x => {
+        const hex = Math.round(x * 255).toString(16);
+        return hex.length === 1 ? "0" + hex : hex;
+      }).join("");
+    }
+    
+    // Get color from paint
+    function getColorFromPaint(paint) {
+      if (paint.type === 'SOLID') {
+        return rgbToHex(paint.color.r, paint.color.g, paint.color.b);
+      }
+      return '#ccc';
+    }
+    
+    // Update selection info
+    function updateSelectionInfo(selection) {
+      const info = document.getElementById('selection-info');
+      if (selection.length === 0) {
+        info.innerHTML = '<strong>No selection</strong><br>Select a component or frame to apply tokens';
+      } else {
+        const types = selection.map(s => s.type.toLowerCase()).join(', ');
+        info.innerHTML = `<strong>${selection.length} ${selection.length === 1 ? 'item' : 'items'} selected</strong><br>Type: ${types}`;
+      }
+    }
+    
+    // Update current styles display
+    function updateCurrentStyles(styles) {
+      const container = document.getElementById('current-styles-container');
+      if (!styles) {
+        container.innerHTML = '';
+        return;
+      }
+      
+      let html = '<div class="current-styles"><div class="current-styles-title">Current Styles</div>';
+      
+      if (styles.fills && styles.fills.length > 0) {
+        const color = getColorFromPaint(styles.fills[0]);
+        html += `<div class="style-item">Fill: <span style="display:inline-block;width:12px;height:12px;background:${color};border:1px solid #ccc;vertical-align:middle;margin:0 4px;"></span>${color}</div>`;
+      }
+      
+      if (styles.fontSize) {
+        html += `<div class="style-item">Font Size: ${styles.fontSize}px</div>`;
+      }
+      
+      if (styles.fontWeight) {
+        html += `<div class="style-item">Font Weight: ${styles.fontWeight}</div>`;
+      }
+      
+      if (styles.lineHeight) {
+        const lh = styles.lineHeight;
+        const lhValue = typeof lh === 'object' ? lh.value : lh;
+        html += `<div class="style-item">Line Height: ${lhValue}${typeof lh === 'object' && lh.unit === 'PIXELS' ? 'px' : ''}</div>`;
+      }
+      
+      if (styles.cornerRadius !== undefined) {
+        html += `<div class="style-item">Corner Radius: ${styles.cornerRadius}px</div>`;
+      }
+      
+      html += '</div>';
+      container.innerHTML = html;
+    }
+    
+    // Render color tokens
+    function renderColorTokens(colors) {
+      const container = document.getElementById('colors-list');
+      if (colors.length === 0) {
+        container.innerHTML = '<div class="empty-state">No color tokens found</div>';
+        return;
+      }
+      
+      container.innerHTML = colors.map(token => {
+        const color = token.value || '#ccc';
+        const shortPath = token.path.split('.').slice(-3).join('.');
+        return `
+          <div class="token-item color-token" data-token-path="${token.path}" data-token-type="color">
+            <div class="color-preview" style="background: ${color}"></div>
+            <div class="token-name">${token.name}</div>
+            <div class="token-path">${shortPath}</div>
+          </div>
+        `;
+      }).join('');
+      
+      container.querySelectorAll('.token-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const tokenPath = item.getAttribute('data-token-path');
+          const tokenType = item.getAttribute('data-token-type');
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'apply-token', 
+              tokenPath, 
+              tokenType,
+              property: 'fill'
+            } 
+          }, '*');
+        });
+      });
+    }
+    
+    // Render typography tokens
+    function renderTypographyTokens(typography) {
+      const container = document.getElementById('typography-list');
+      if (typography.length === 0) {
+        container.innerHTML = '<div class="empty-state">No typography tokens found</div>';
+        return;
+      }
+      
+      const fontSize = typography.filter(t => t.path.includes('size'));
+      const lineHeight = typography.filter(t => t.path.includes('lineHeight'));
+      const fontWeight = typography.filter(t => t.path.includes('weight'));
+      
+      let html = '';
+      
+      if (fontSize.length > 0) {
+        html += '<div style="margin-bottom: 8px;"><strong style="font-size: 11px; color: #666;">Font Size</strong>';
+        html += fontSize.map(token => {
+          const shortPath = token.path.split('.').slice(-3).join('.');
+          return `
+            <div class="token-item" data-token-path="${token.path}" data-property="fontSize" style="margin-top: 4px;">
+              <div class="token-name">${token.name}: ${token.value}px</div>
+              <div class="token-path">${shortPath}</div>
+            </div>
+          `;
+        }).join('');
+        html += '</div>';
+      }
+      
+      if (lineHeight.length > 0) {
+        html += '<div style="margin-bottom: 8px;"><strong style="font-size: 11px; color: #666;">Line Height</strong>';
+        html += lineHeight.map(token => {
+          const shortPath = token.path.split('.').slice(-3).join('.');
+          return `
+            <div class="token-item" data-token-path="${token.path}" data-property="lineHeight" style="margin-top: 4px;">
+              <div class="token-name">${token.name}: ${token.value}</div>
+              <div class="token-path">${shortPath}</div>
+            </div>
+          `;
+        }).join('');
+        html += '</div>';
+      }
+      
+      if (fontWeight.length > 0) {
+        html += '<div><strong style="font-size: 11px; color: #666;">Font Weight</strong>';
+        html += fontWeight.map(token => {
+          const shortPath = token.path.split('.').slice(-3).join('.');
+          return `
+            <div class="token-item" data-token-path="${token.path}" data-property="fontWeight" style="margin-top: 4px;">
+              <div class="token-name">${token.name}: ${token.value}</div>
+              <div class="token-path">${shortPath}</div>
+            </div>
+          `;
+        }).join('');
+        html += '</div>';
+      }
+      
+      container.innerHTML = html;
+      
+      container.querySelectorAll('.token-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const tokenPath = item.getAttribute('data-token-path');
+          const property = item.getAttribute('data-property');
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'apply-token', 
+              tokenPath,
+              property
+            } 
+          }, '*');
+        });
+      });
+    }
+    
+    // Render spacing tokens
+    function renderSpacingTokens(spacing) {
+      const container = document.getElementById('spacing-list');
+      if (spacing.length === 0) {
+        container.innerHTML = '<div class="empty-state">No spacing tokens found</div>';
+        return;
+      }
+      
+      container.innerHTML = spacing.map(token => {
+        const shortPath = token.path.split('.').slice(-3).join('.');
+        return `
+          <div class="token-item" data-token-path="${token.path}" data-property="spacing">
+            <div class="token-name">${token.name}: ${token.value}px</div>
+            <div class="token-path">${shortPath}</div>
+          </div>
+        `;
+      }).join('');
+      
+      container.querySelectorAll('.token-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const tokenPath = item.getAttribute('data-token-path');
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'apply-token', 
+              tokenPath,
+              property: 'spacing'
+            } 
+          }, '*');
+        });
+      });
+    }
+    
+    // Show message
+    function showMessage(text, type) {
+      const container = document.getElementById('message-container');
+      container.innerHTML = `<div class="message ${type}">${text}</div>`;
+      setTimeout(() => {
+        container.innerHTML = '';
+      }, 3000);
+    }
+    
+    // Listen for messages from plugin
+    window.onmessage = (event) => {
+      const msg = event.data.pluginMessage;
+      
+      if (msg.type === 'init') {
+        currentTokens = msg.tokens;
+        currentSelection = msg.selection;
+        currentStyles = msg.currentStyles;
+        renderColorTokens(msg.tokens.colors);
+        renderTypographyTokens(msg.tokens.typography);
+        renderSpacingTokens(msg.tokens.spacing);
+        updateSelectionInfo(msg.selection);
+        updateCurrentStyles(msg.currentStyles);
+      }
+      
+      if (msg.type === 'selection-changed') {
+        currentSelection = msg.selection;
+        currentStyles = msg.currentStyles;
+        currentTokens = msg.tokens;
+        updateSelectionInfo(msg.selection);
+        updateCurrentStyles(msg.currentStyles);
+        renderColorTokens(msg.tokens.colors);
+        renderTypographyTokens(msg.tokens.typography);
+        renderSpacingTokens(msg.tokens.spacing);
+      }
+      
+      if (msg.type === 'success') {
+        showMessage(msg.message, 'success');
+      }
+      
+      if (msg.type === 'error') {
+        showMessage(msg.message, 'error');
+      }
+    };
+    
+    // Button handlers
+    document.getElementById('cancel').onclick = () => {
+      parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
+    };
+  </script>
+</body>
+</html>
