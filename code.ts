@@ -172,11 +172,11 @@ function hexToRgb(hex: string): { r: number; g: number; b: number; a?: number } 
 }
 
 // Get selected components and frames
-function getSelectedNodes(): (ComponentNode | FrameNode)[] {
+function getSelectedNodes(): (ComponentNode | InstanceNode | FrameNode)[] {
   const selection = figma.currentPage.selection;
   return selection.filter(
-    (node) => node.type === 'COMPONENT' || node.type === 'FRAME'
-  ) as (ComponentNode | FrameNode)[];
+    (node) => node.type === 'COMPONENT' || node.type === 'INSTANCE' || node.type === 'FRAME'
+  ) as (ComponentNode | InstanceNode | FrameNode)[];
 }
 
 // Get all available tokens organized by category
