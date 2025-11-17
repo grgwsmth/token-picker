@@ -211,13 +211,14 @@ function getSelectedNodes(): (ComponentNode | InstanceNode | FrameNode | TextNod
 
 // Get all available tokens organized by category
 function getTokensByCategory(tokens: any) {
-  if (!tokens || !tokens.ld) return { colors: [], spacing: [], typography: [], effects: [] };
+  if (!tokens || !tokens.ld) return { colors: [], spacing: [], borderRadius: [], typography: [], effects: [] };
   
   const allTokens = flattenTokens(tokens.ld, tokens);
   
   return {
     colors: allTokens.filter(t => t.type === 'color'),
-    spacing: allTokens.filter(t => t.path.includes('spacing') || t.path.includes('radius')),
+    spacing: allTokens.filter(t => t.path.includes('spacing') && !t.path.includes('radius')),
+    borderRadius: allTokens.filter(t => t.path.includes('radius') || t.path.includes('borderRadius')),
     typography: allTokens.filter(t => t.path.includes('font')),
     effects: allTokens.filter(t => t.path.includes('shadow') || t.path.includes('effect'))
   };
@@ -301,6 +302,17 @@ figma.ui.onmessage = async (msg: {
           const rgb = hexToRgb(String(tokenValue));
           if (rgb && 'fills' in node) {
             node.fills = [{ 
+              type: 'SOLID', 
+              color: { r: rgb.r, g: rgb.g, b: rgb.b },
+              opacity: rgb.a !== undefined ? rgb.a : 1
+            }];
+          }
+        }
+
+        if (msg.property === 'stroke') {
+          const rgb = hexToRgb(String(tokenValue));
+          if (rgb && 'strokes' in node) {
+            node.strokes = [{ 
               type: 'SOLID', 
               color: { r: rgb.r, g: rgb.g, b: rgb.b },
               opacity: rgb.a !== undefined ? rgb.a : 1

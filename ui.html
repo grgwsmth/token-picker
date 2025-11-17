@@ -288,64 +288,114 @@
       }
     }
     
-    // Render styles for a single node
-    function renderNodeStyles(nodeName, nodeType, styles) {
+    // Render a compact token picker for a property
+    function renderTokenPicker(tokens, property, nodeIndex, styleProperty) {
+      if (!tokens || tokens.length === 0) return '';
+      
+      const uniqueId = `token-picker-${nodeIndex}-${property}-${Date.now()}-${Math.random()}`;
+      let html = `<div style="margin-left: 16px; margin-top: 4px; margin-bottom: 8px;">`;
+      html += `<select class="token-select" data-property="${property}" data-node-index="${nodeIndex}" style="width: 100%; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; background: white;">`;
+      html += `<option value="">Choose token...</option>`;
+      
+      tokens.forEach(token => {
+        const shortPath = token.path.split('.').slice(-3).join('.');
+        const displayValue = token.value !== undefined ? (typeof token.value === 'number' ? `${token.value}px` : token.value) : '';
+        html += `<option value="${token.path}">${token.name} (${shortPath}) ${displayValue ? `- ${displayValue}` : ''}</option>`;
+      });
+      
+      html += `</select></div>`;
+      
+      return html;
+    }
+    
+    // Attach event listeners to token pickers using event delegation
+    function attachTokenPickerListeners(container) {
+      container.addEventListener('change', (e) => {
+        if (e.target.classList.contains('token-select')) {
+          const tokenPath = e.target.value;
+          const property = e.target.getAttribute('data-property');
+          if (tokenPath && property) {
+            const tokenType = property === 'fill' || property === 'stroke' ? 'color' : '';
+            parent.postMessage({ 
+              pluginMessage: { 
+                type: 'apply-token', 
+                tokenPath, 
+                tokenType,
+                property: property
+              } 
+            }, '*');
+          }
+        }
+      });
+    }
+    
+    // Render styles for a single node with inline token pickers
+    function renderNodeStyles(nodeName, nodeType, styles, tokens, nodeIndex) {
       let html = '';
       
       if (styles.fills && styles.fills.length > 0) {
         const color = getColorFromPaint(styles.fills[0]);
-        html += `<div class="style-item">Fill: <span style="display:inline-block;width:12px;height:12px;background:${color};border:1px solid #ccc;vertical-align:middle;margin:0 4px;"></span>${color}</div>`;
+        html += `<div class="style-item" style="margin-bottom: 4px;">Fill: <span style="display:inline-block;width:12px;height:12px;background:${color};border:1px solid #ccc;vertical-align:middle;margin:0 4px;"></span>${color}</div>`;
+        html += renderTokenPicker(tokens.colors, 'fill', nodeIndex, 'fills');
       }
       
       if (styles.strokes && styles.strokes.length > 0) {
         const strokeColor = getColorFromPaint(styles.strokes[0]);
-        html += `<div class="style-item">Stroke: <span style="display:inline-block;width:12px;height:12px;background:${strokeColor};border:1px solid #ccc;vertical-align:middle;margin:0 4px;"></span>${strokeColor}</div>`;
+        html += `<div class="style-item" style="margin-bottom: 4px;">Stroke: <span style="display:inline-block;width:12px;height:12px;background:${strokeColor};border:1px solid #ccc;vertical-align:middle;margin:0 4px;"></span>${strokeColor}</div>`;
+        html += renderTokenPicker(tokens.colors, 'stroke', nodeIndex, 'strokes');
       }
       
       if (styles.fontSize) {
-        html += `<div class="style-item">Font Size: ${styles.fontSize}px</div>`;
+        html += `<div class="style-item" style="margin-bottom: 4px;">Font Size: ${styles.fontSize}px</div>`;
+        const fontSizeTokens = tokens.typography ? tokens.typography.filter(t => t.path.includes('size')) : [];
+        html += renderTokenPicker(fontSizeTokens, 'fontSize', nodeIndex, 'fontSize');
       }
       
       if (styles.fontWeight) {
-        html += `<div class="style-item">Font Weight: ${styles.fontWeight}</div>`;
+        html += `<div class="style-item" style="margin-bottom: 4px;">Font Weight: ${styles.fontWeight}</div>`;
+        // Note: fontWeight is read-only, but we can still show tokens for reference
       }
       
       if (styles.fontName) {
         const fontName = typeof styles.fontName === 'object' ? `${styles.fontName.family} ${styles.fontName.style || ''}`.trim() : styles.fontName;
-        html += `<div class="style-item">Font: ${fontName}</div>`;
+        html += `<div class="style-item" style="margin-bottom: 4px;">Font: ${fontName}</div>`;
       }
       
       if (styles.lineHeight) {
         const lh = styles.lineHeight;
         const lhValue = typeof lh === 'object' ? lh.value : lh;
-        html += `<div class="style-item">Line Height: ${lhValue}${typeof lh === 'object' && lh.unit === 'PIXELS' ? 'px' : ''}</div>`;
+        html += `<div class="style-item" style="margin-bottom: 4px;">Line Height: ${lhValue}${typeof lh === 'object' && lh.unit === 'PIXELS' ? 'px' : ''}</div>`;
+        const lineHeightTokens = tokens.typography ? tokens.typography.filter(t => t.path.includes('lineHeight')) : [];
+        html += renderTokenPicker(lineHeightTokens, 'lineHeight', nodeIndex, 'lineHeight');
       }
       
       if (styles.letterSpacing) {
         const ls = styles.letterSpacing;
         const lsValue = typeof ls === 'object' ? ls.value : ls;
-        html += `<div class="style-item">Letter Spacing: ${lsValue}${typeof ls === 'object' && ls.unit === 'PIXELS' ? 'px' : ''}</div>`;
+        html += `<div class="style-item" style="margin-bottom: 4px;">Letter Spacing: ${lsValue}${typeof ls === 'object' && ls.unit === 'PIXELS' ? 'px' : ''}</div>`;
       }
       
       if (styles.cornerRadius !== undefined) {
-        html += `<div class="style-item">Corner Radius: ${styles.cornerRadius}px</div>`;
+        html += `<div class="style-item" style="margin-bottom: 4px;">Corner Radius: ${styles.cornerRadius}px</div>`;
+        html += renderTokenPicker(tokens.borderRadius, 'cornerRadius', nodeIndex, 'cornerRadius');
       }
       
       if (styles.paddingLeft !== undefined || styles.paddingTop !== undefined) {
         const padding = styles.paddingTop || styles.paddingLeft || 0;
-        html += `<div class="style-item">Padding: ${padding}px</div>`;
+        html += `<div class="style-item" style="margin-bottom: 4px;">Padding: ${padding}px</div>`;
+        html += renderTokenPicker(tokens.spacing, 'spacing', nodeIndex, 'padding');
       }
       
       if (styles.effects && styles.effects.length > 0) {
         const effectCount = styles.effects.length;
-        html += `<div class="style-item">Effects: ${effectCount} ${effectCount === 1 ? 'effect' : 'effects'}</div>`;
+        html += `<div class="style-item" style="margin-bottom: 4px;">Effects: ${effectCount} ${effectCount === 1 ? 'effect' : 'effects'}</div>`;
       }
       
       return html;
     }
     
-    // Update current styles display - shows all styles from all nodes
-    function updateCurrentStyles(styles, allStyles) {
+    // Update current styles display - shows all styles from all nodes with inline token pickers
+    function updateCurrentStyles(styles, allStyles, tokens) {
       const container = document.getElementById('current-styles-container');
       
       // Use allStyles if available, otherwise fall back to single styles object
@@ -353,7 +403,7 @@
         let html = '<div class="current-styles"><div class="current-styles-title">Current Styles (All Nodes)</div>';
         
         allStyles.forEach((nodeData, index) => {
-          const nodeStylesHtml = renderNodeStyles(nodeData.nodeName, nodeData.nodeType, nodeData.styles);
+          const nodeStylesHtml = renderNodeStyles(nodeData.nodeName, nodeData.nodeType, nodeData.styles, tokens || {}, index);
           if (nodeStylesHtml) {
             html += `<div style="margin-top: ${index > 0 ? '12px' : '0'}; padding-top: ${index > 0 ? '12px' : '0'}; border-top: ${index > 0 ? '1px solid #e5e5e5' : 'none'};">`;
             html += `<div style="font-weight: 600; font-size: 11px; color: #666; margin-bottom: 6px;">${nodeData.nodeName} (${nodeData.nodeType})</div>`;
@@ -364,12 +414,16 @@
         
         html += '</div>';
         container.innerHTML = html;
+        // Attach event listeners using event delegation
+        attachTokenPickerListeners(container);
       } else if (styles) {
         // Fallback to single styles object for backward compatibility
         let html = '<div class="current-styles"><div class="current-styles-title">Current Styles</div>';
-        html += renderNodeStyles('Selected Node', 'NODE', styles);
+        html += renderNodeStyles('Selected Node', 'NODE', styles, tokens || {}, 0);
         html += '</div>';
         container.innerHTML = html;
+        // Attach event listeners using event delegation
+        attachTokenPickerListeners(container);
       } else {
         container.innerHTML = '';
       }
@@ -533,11 +587,15 @@
         currentTokens = msg.tokens;
         currentSelection = msg.selection;
         currentStyles = msg.currentStyles;
-        renderColorTokens(msg.tokens.colors);
-        renderTypographyTokens(msg.tokens.typography);
-        renderSpacingTokens(msg.tokens.spacing);
+        // Hide old token sections since we're showing them inline now
+        document.getElementById('colors-list').style.display = 'none';
+        document.getElementById('typography-list').style.display = 'none';
+        document.getElementById('spacing-list').style.display = 'none';
+        document.querySelectorAll('.section').forEach(section => {
+          section.style.display = 'none';
+        });
         updateSelectionInfo(msg.selection);
-        updateCurrentStyles(msg.currentStyles, msg.allStyles);
+        updateCurrentStyles(msg.currentStyles, msg.allStyles, msg.tokens);
       }
       
       if (msg.type === 'selection-changed') {
@@ -545,10 +603,7 @@
         currentStyles = msg.currentStyles;
         currentTokens = msg.tokens;
         updateSelectionInfo(msg.selection);
-        updateCurrentStyles(msg.currentStyles, msg.allStyles);
-        renderColorTokens(msg.tokens.colors);
-        renderTypographyTokens(msg.tokens.typography);
-        renderSpacingTokens(msg.tokens.spacing);
+        updateCurrentStyles(msg.currentStyles, msg.allStyles, msg.tokens);
       }
       
       if (msg.type === 'success') {
